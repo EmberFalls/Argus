@@ -28,6 +28,19 @@
           ],
           "default": null,
           "title": "Timestamp"
+        },
+        "step_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Step Index"
         }
       },
       "required": [
@@ -133,6 +146,37 @@
           "title": "Actual",
           "type": "string"
         },
+        "failure_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "assertion",
+                "interaction",
+                "timeout",
+                "setup"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failure Kind"
+        },
+        "failed_step_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Failed Step Index"
+        },
         "network": {
           "items": {
             "$ref": "#/$defs/NetworkEvent"
@@ -218,6 +262,70 @@
         }
       },
       "title": "Evidence",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "title": "Id",
+          "type": "string"
+        },
+        "oracle_id": {
+          "minLength": 1,
+          "title": "Oracle Id",
+          "type": "string"
+        },
+        "symptom_signature": {
+          "minLength": 1,
+          "title": "Symptom Signature",
+          "type": "string"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/Step"
+          },
+          "title": "Steps",
+          "type": "array"
+        },
+        "evidence_ref": {
+          "minLength": 1,
+          "title": "Evidence Ref",
+          "type": "string"
+        },
+        "expected": {
+          "default": "",
+          "title": "Expected",
+          "type": "string"
+        },
+        "actual": {
+          "default": "",
+          "title": "Actual",
+          "type": "string"
+        },
+        "affected_paths": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Affected Paths",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "oracle_id",
+        "symptom_signature",
+        "confidence",
+        "evidence_ref"
+      ],
+      "title": "Finding",
       "type": "object"
     },
     "NetworkEvent": {
@@ -328,6 +436,12 @@
           "default": 0,
           "minimum": 0,
           "title": "Failed",
+          "type": "integer"
+        },
+        "raw_findings": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Raw Findings",
           "type": "integer"
         }
       },
@@ -514,7 +628,7 @@
           "title": "Value"
         },
         "timeout_ms": {
-          "default": 5000,
+          "default": 10000,
           "exclusiveMinimum": 0,
           "maximum": 120000,
           "title": "Timeout Ms",
@@ -770,6 +884,13 @@
         "$ref": "#/$defs/TestResult"
       },
       "title": "Test Results",
+      "type": "array"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/Finding"
+      },
+      "title": "Findings",
       "type": "array"
     },
     "exported_tests": {

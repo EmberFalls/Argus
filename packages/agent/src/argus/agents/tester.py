@@ -3,15 +3,18 @@ from __future__ import annotations
 import asyncio
 import re
 from urllib.parse import urljoin
+from uuid import uuid4
 
 from argus_contracts.artifacts import RunArtifactLayout
-from argus_contracts.models import Evidence
-from playwright.async_api import Error as PlaywrightError
+from argus_contracts.models import Evidence, RunEvent
 from playwright.async_api import CDPSession, Page
+from playwright.async_api import Error as PlaywrightError
+from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from argus.browser.session import BrowserSession
 from argus.evidence.recorder import EvidenceRecorder
 from argus.perception.a11y import resolve_semantic_locator
+from argus.spec.data_factory import TestDataFactory
 from argus.state.test_case import Step, TestCase
 
 
@@ -21,37 +24,100 @@ class TestStepInconclusive(RuntimeError):
 
 async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtifactLayout,
                        *, initial_url: str | None = None,
-                       synthetic_values: tuple[str, ...] = ()) -> tuple[str, Evidence, int]:
+                       synthetic_values: tuple[str, ...] = (),
+                       data_factory: TestDataFactory | None = None) -> tuple[str, Evidence, int]:
     started = asyncio.get_running_loop().time()
     page = session.page
-    recorder = EvidenceRecorder(session, layout, case.id, case.steps,
-                                expected=case.expected, synthetic_values=synthetic_values)
+    factory = data_factory or TestDataFactory()
+    preparation_error = None
+    try:
+        prepared = factory.prepare(case)
+        case = prepared.test_case
+    except Exception as exc:
+        prepared = None
+        preparation_error = f"Test data preparation failed: {type(exc).__name__}: {exc}"
+    recorder = EvidenceRecorder(
+        session, layout, case.id, case.steps, expected=case.expected,
+        synthetic_values=(
+            *synthetic_values,
+            *(prepared.synthetic_values if prepared is not None else ()),
+        ),
+    )
     actual = "Journey completed."
     verdict = "PASS"
+    failure_kind: str | None = None
+    failed_step_index: int | None = None
+    try:
+        if preparation_error:
+            raise ValueError(preparation_error)
+        assert prepared is not None
+        await factory.reset(prepared)
+    except Exception as exc:
+        verdict = "INCONCLUSIVE"
+        failure_kind = "setup"
+        actual = (
+            preparation_error
+            or f"Test data reset failed: {type(exc).__name__}: {exc}"
+        )
     if initial_url:
-        recorder.current_step_index = 0
-        try:
-            await page.goto(initial_url, wait_until="domcontentloaded", timeout=30000)
-        except PlaywrightError as exc:
-            verdict, actual = "FAIL", f"{type(exc).__name__}: {exc}"
+        recorder.current_step_index = None
+        if verdict == "PASS":
+            try:
+                await page.goto(initial_url, wait_until="domcontentloaded", timeout=30000)
+            except PlaywrightError as exc:
+                verdict, actual = "FAIL", f"{type(exc).__name__}: {exc}"
+                failure_kind = "setup"
     console_baseline = len(session.console)
     request_baseline = len(session.requests)
     for step_index, step in enumerate(case.steps):
         if verdict != "PASS":
             break
+        action_started = asyncio.get_running_loop().time()
+        layout.append_event(RunEvent(
+            id=uuid4().hex, run_id=layout.run_dir.name, agent="tester",
+            correlation_id=case.id, type="action",
+            payload={"phase": "started", "step_index": step_index, "action": step.action},
+        ))
         await recorder.begin_step(
             step_index, _step_element(page, step),
             step=step,
             sensitive=bool(step.value and step.value in recorder.redactor.secret_values),
         )
         try:
-            await _run_step(page, step, cdp_session=session.cdp_session, session=session,
-                            console_baseline=console_baseline, request_baseline=request_baseline)
+            async with asyncio.timeout(step.timeout_ms / 1000):
+                await _run_step(
+                    page, step, cdp_session=session.cdp_session, session=session,
+                    console_baseline=console_baseline, request_baseline=request_baseline,
+                )
         except TestStepInconclusive as exc:
             verdict, actual = "INCONCLUSIVE", str(exc)
+            failure_kind, failed_step_index = "setup", step_index
+        except (TimeoutError, PlaywrightTimeoutError) as exc:
+            failed_step_index = step_index
+            if step.action == "assert" or step.action.startswith("assert_"):
+                verdict = "FAIL"
+                failure_kind = "assertion"
+                actual = f"Assertion at step {step_index} was not satisfied within {step.timeout_ms} ms: {exc}"
+            else:
+                verdict = "INCONCLUSIVE"
+                failure_kind = "timeout"
+                actual = f"Step {step_index} timed out after {step.timeout_ms} ms: {exc}"
         except Exception as exc:
             verdict, actual = "FAIL", f"{type(exc).__name__}: {exc}"
+            failure_kind = "assertion" if step.action == "assert" or step.action.startswith("assert_") else "interaction"
+            failed_step_index = step_index
         await recorder.finish_step(step_index)
+        layout.append_event(RunEvent(
+            id=uuid4().hex, run_id=layout.run_dir.name, agent="tester",
+            correlation_id=case.id, type="action",
+            payload={
+                "phase": "completed" if verdict == "PASS" else "failed",
+                "step_index": step_index,
+                "action": step.action,
+                "verdict": verdict,
+                "duration_ms": int((asyncio.get_running_loop().time() - action_started) * 1000),
+            },
+        ))
         if verdict != "PASS":
             break
     # Restore per-case emulation even when an interaction failed partway through.
@@ -71,7 +137,9 @@ async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtif
             })
         except Exception:
             pass
-    evidence = await recorder.finish(actual=actual)
+    evidence = await recorder.finish(
+        actual=actual, failure_kind=failure_kind, failed_step_index=failed_step_index,
+    )
     elapsed = int((asyncio.get_running_loop().time() - started) * 1000)
     return verdict, evidence, elapsed
 
