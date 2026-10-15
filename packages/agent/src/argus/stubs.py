@@ -176,10 +176,11 @@ def run_stub_demo(
     *,
     real_roles: tuple[str, ...] = (),
     registry: ComponentRegistry | None = None,
+    run_id: str | None = None,
 ) -> dict:
     """Run the sequential skeleton and persist its validated demo artifacts."""
     fixtures = GoldenFixtures()
-    run_id = uuid4().hex
+    run_id = run_id or uuid4().hex
     layout = RunArtifactLayout(output_dir / "runs", run_id).initialize()
     registry = registry or build_demo_registry(fixtures, layout)
     roles = registry.build(real_roles)
