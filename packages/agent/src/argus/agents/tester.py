@@ -4,13 +4,14 @@ import asyncio
 import re
 from urllib.parse import urljoin
 
+from argus_contracts.artifacts import RunArtifactLayout
+from argus_contracts.models import Evidence
+from playwright.async_api import Error as PlaywrightError
 from playwright.async_api import CDPSession, Page
 
 from argus.browser.session import BrowserSession
 from argus.evidence.recorder import EvidenceRecorder
 from argus.perception.a11y import resolve_semantic_locator
-from argus_contracts.artifacts import RunArtifactLayout
-from argus_contracts.models import Evidence
 from argus.state.test_case import Step, TestCase
 
 
@@ -31,7 +32,7 @@ async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtif
         recorder.current_step_index = 0
         try:
             await page.goto(initial_url, wait_until="domcontentloaded", timeout=30000)
-        except Exception as exc:
+        except PlaywrightError as exc:
             verdict, actual = "FAIL", f"{type(exc).__name__}: {exc}"
     console_baseline = len(session.console)
     request_baseline = len(session.requests)

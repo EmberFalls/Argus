@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 from uuid import uuid4
 
 from argus_contracts.artifacts import RunArtifactLayout
@@ -14,13 +14,12 @@ from argus_contracts.models import (
     QAState, RunEvent, Spec, TestCase, TestResult, VerificationResult,
 )
 
-from argus.reporter.playwright_export import export_test
 from argus.components import ComponentRegistry, DemoExplorer, DemoTester
 from argus.models import ModelGateway
 from argus.spec.binder import SemanticTestBinder
 from argus.spec.parser import ModelSpecParser
 from argus.spec.playbook import HeuristicPlaybookGenerator
-
+from argus.reporter.playwright_export import export_test
 
 FIXTURE_DIR = Path(__file__).resolve().parents[4] / "fixtures"
 
@@ -185,10 +184,11 @@ def run_stub_demo(
     *,
     real_roles: tuple[str, ...] = (),
     registry: ComponentRegistry | None = None,
+    run_id: str | None = None,
 ) -> dict:
     """Run the sequential skeleton and persist its validated demo artifacts."""
     fixtures = GoldenFixtures()
-    run_id = uuid4().hex
+    run_id = run_id or uuid4().hex
     layout = RunArtifactLayout(output_dir / "runs", run_id).initialize()
     registry = registry or build_demo_registry(fixtures, layout)
     roles = registry.build(real_roles)

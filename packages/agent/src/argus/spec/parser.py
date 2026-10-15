@@ -10,6 +10,8 @@ from collections.abc import Mapping
 from argus.models import ModelGateway, ModelTier, StructuredModel
 from argus_contracts.models import Spec
 
+from argus.state.test_case import TestCase
+
 
 SYSTEM_PROMPT = """You are the Argus product-specification parser.
 Convert the supplied product description and optional supporting material into
