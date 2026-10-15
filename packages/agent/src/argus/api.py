@@ -1,6 +1,6 @@
+from argus_contracts.models import CreateRunRequest
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from argus_contracts.models import CreateRunRequest
 
 from argus.config import settings
 from argus.supervisor.loop import run_qa

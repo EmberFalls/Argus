@@ -17,7 +17,7 @@ export default function HomePage() {
       const data = await response.json();
       if (!response.ok) throw new Error(data.detail || "Run failed");
       const result = data as RunSummary;
-      setMetrics(result.metrics); setStatus("Run complete. Evidence was saved by the agent.");
+      setMetrics(result.metrics ?? null); setStatus("Run complete. Evidence was saved by the agent.");
     } catch (error) { setStatus(error instanceof Error ? error.message : "Unable to reach Argus API."); }
   }
   return <main className="shell">
