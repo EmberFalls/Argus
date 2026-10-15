@@ -66,8 +66,33 @@ class ElementCatalogEntry(ContractModel):
     in_viewport: bool
 
 
+class AppGraphNode(ContractModel):
+    """A distinct reachable UI state in a crawled application."""
+
+    id: str = Field(min_length=1)
+    url: str = Field(min_length=1)
+    signature: str = Field(min_length=1)
+    title: str = ""
+    accessibility_snapshot: str = ""
+    elements: list[ElementCatalogEntry] = Field(default_factory=list)
+    authenticated: bool = False
+    captured: bool = True
+
+
+class AppGraphEdge(ContractModel):
+    """A user action that transitions between two discovered states."""
+
+    source: str = Field(min_length=1)
+    target: str = Field(min_length=1)
+    action: Literal["link", "button"]
+    locator: str = Field(min_length=1)
+
+
 class AppGraph(ContractModel):
+    # Keep adjacency required by existing consumers while exposing richer crawl data.
     adjacency: dict[str, list[str]] = Field(default_factory=dict)
+    nodes: list[AppGraphNode] = Field(default_factory=list)
+    edges: list[AppGraphEdge] = Field(default_factory=list)
 
 
 class NetworkEvent(ContractModel):

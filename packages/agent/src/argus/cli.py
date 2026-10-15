@@ -132,3 +132,22 @@ def snapshot(
           f"({result['visible_strict_mode_resolution_rate']:.1%})")
     print(f"Compact rendering: {result['compact_token_estimate']}/{max_tokens} estimated tokens")
 
+
+@app.command()
+def crawl(
+    url: str = typer.Argument(..., help="Starting HTTP(S) URL for same-origin crawling"),
+    output: Path = typer.Option(  # noqa: B008
+        Path("artifacts/app_graph.json"), "--output", help="Validated AppGraph JSON output"
+    ),
+    max_pages: int = typer.Option(50, "--max-pages", min=1, help="Maximum pages to visit"),
+    max_steps: int = typer.Option(500, "--max-steps", min=1, help="Maximum navigation/click steps"),
+) -> None:
+    """Crawl an application deterministically and write its app graph."""
+    from argus.agents.explorer_crawler import crawl_app
+
+    graph = asyncio.run(
+        crawl_app(url, output, max_pages=max_pages, max_steps=max_steps)
+    )
+    print(f"[green]Crawl complete[/green]: {len(graph.nodes)} states, {len(graph.edges)} transitions")
+    print(f"App graph: {output}")
+

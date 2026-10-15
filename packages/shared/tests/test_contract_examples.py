@@ -1,19 +1,40 @@
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
-from pydantic import ValidationError
 from typing import get_args
 
+import pytest
+from argus_contracts.artifacts import RunArtifactLayout
 from argus_contracts.models import (
-    AppGraph, BugReport, ConsoleEvent, CreateRunRequest, ElementCatalogEntry,
-    Evidence, Finding, GateResult, ManifestBug, NetworkEvent, QAState,
-    ReproductionResult, RunEvent, RunMetrics, RunSummary, Spec, SpecClaim, StepEvidence,
-    RunEventType, SpecEntity, Step, TestCase, TestResult, ValidationRule,
+    AppGraph,
+    AppGraphEdge,
+    AppGraphNode,
+    BugReport,
+    ConsoleEvent,
+    CreateRunRequest,
+    ElementCatalogEntry,
+    Evidence,
+    Finding,
+    GateResult,
+    ManifestBug,
+    NetworkEvent,
+    QAState,
+    ReproductionResult,
+    RunEvent,
+    RunEventType,
+    RunMetrics,
+    RunSummary,
+    Spec,
+    SpecClaim,
+    SpecEntity,
+    Step,
+    StepEvidence,
+    TestCase,
+    TestResult,
+    ValidationRule,
     VerificationResult,
 )
-from argus_contracts.artifacts import RunArtifactLayout
-
+from pydantic import ValidationError
 
 EXAMPLES = [
     (SpecClaim, {"id": "claim-1", "statement": "Login succeeds", "priority": "high"}, {"id": "", "statement": ""}),
@@ -24,6 +45,8 @@ EXAMPLES = [
     (Spec, {"description": "A user can log in"}, {"description": ""}),
     (ElementCatalogEntry, {"id": "el-1", "role": "button", "semantic_locator": "role=button[name=Save]", "visible": True, "enabled": True, "in_viewport": True}, {"id": "", "role": "", "semantic_locator": "", "visible": True, "enabled": True, "in_viewport": True}),
     (AppGraph, {"adjacency": {"/": ["/login"]}}, {"adjacency": []}),
+    (AppGraphNode, {"id": "state-1", "url": "http://example.test/", "signature": "abc123"}, {"id": "", "url": "", "signature": ""}),
+    (AppGraphEdge, {"source": "state-1", "target": "state-2", "action": "link", "locator": "link:Login"}, {"source": "state-1", "target": "state-2", "action": "submit", "locator": ""}),
     (NetworkEvent, {"url": "/api/login", "status": 200, "step_index": 2}, {"url": "/api/login", "status": 99, "step_index": -1}),
     (ConsoleEvent, {"level": "error", "message": "Unhandled exception"}, {"level": "fatal", "message": "x"}),
     (ReproductionResult, {"attempts": 3, "successes": 2, "contexts": ["fresh", "fresh", "fresh"]}, {"attempts": -1}),
