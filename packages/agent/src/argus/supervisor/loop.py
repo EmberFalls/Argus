@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from uuid import uuid4
+
 from argus_contracts.artifacts import RunArtifactLayout
 from argus_contracts.models import RunEvent, RunMetrics, RunSummary, TestResult
 
