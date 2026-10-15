@@ -175,6 +175,8 @@ curl.exe http://localhost:8000/runs/<run_id>
 
 SSE event IDs are increasing sequence numbers. To resume after event 24, reconnect with `curl.exe -N -H "Last-Event-ID: 24" http://localhost:8000/runs/<run_id>/events`; the stream starts with event 25. Run details list artifact URLs, which can be fetched directly, for example `/runs/<run_id>/artifacts/reports/bug_reports.json`.
 
+For real Chromium runs, the UI shows a live browser panel after submission. The API captures 720p-or-smaller JPEG frames through CDP and streams them over the run's WebSocket endpoint (`/runs/<run_id>/screencast`). The frontend canvas and cursor overlay are outside the target page; action cues include their locator bounds and rationale. The `/replay` route uses a static browser-frame fixture with the recorded event stream and does not browse a site.
+
 Set `ARGUS_API_TOKEN` in the API process environment to protect run and artifact endpoints with `Authorization: Bearer <token>`. `/health` remains public. For local Vite development, set the same value as `VITE_ARGUS_API_TOKEN`; for Docker Compose, provide both variables in the repository-root `.env`. Vite embeds its token in browser code, so this setting is for a local single-tenant demo, not a production secret.
 
 ## Run checks

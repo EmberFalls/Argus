@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { CreateRunRequest, RunMetrics } from "@/lib/generated/contracts";
 import { argusApiUrl } from "@/lib/api";
 import { useRunEvents } from "@/lib/use-run-events";
+import { LiveView } from "@/components/live-view";
 
 interface AcceptedRun {
   run_id: string;
@@ -60,12 +61,12 @@ export default function HomePage() {
         <label>What should the app do?<textarea required placeholder="A user can sign in and publish an article…" value={spec} onChange={e => setSpec(e.target.value)}/></label>
         <button className="button" type="submit">Explore application ↗</button><p className="status" aria-live="polite">{status}</p>
       </form></div>
-      <div className="panel"><h2>Run scoreboard</h2><div className="stats">
+      {activeRunId ? <div className="panel"><h2>Live browser</h2><LiveView runId={activeRunId}/></div> : <div className="panel"><h2>Run scoreboard</h2><div className="stats">
         <div className="stat"><strong>{metrics?.journeys ?? "—"}</strong><small>Journeys</small></div>
         <div className="stat"><strong>{metrics?.passed ?? "—"}</strong><small>Passed</small></div>
         <div className="stat"><strong>{metrics?.failed ?? "—"}</strong><small>Failed</small></div>
         <div className="stat"><strong>—</strong><small>Verified bugs</small></div>
-      </div><ul className="list"><li>Semantic browser inventory</li><li>Console and network evidence</li><li>Reproducible journey artifacts</li></ul></div>
+      </div><ul className="list"><li>Semantic browser inventory</li><li>Console and network evidence</li><li>Reproducible journey artifacts</li></ul></div>}
     </section>
     <footer className="eyebrow" style={{ marginTop: 28 }}>LOCAL DEVELOPMENT BUILD · MODEL REASONING IS NOT CONFIGURED</footer>
   </main>;
