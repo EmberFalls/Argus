@@ -12,6 +12,13 @@
       "minLength": 1,
       "title": "Spec",
       "type": "string"
+    },
+    "context": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Context",
+      "type": "object"
     }
   },
   "required": [

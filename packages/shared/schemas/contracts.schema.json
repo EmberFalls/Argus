@@ -22,6 +22,9 @@
       "$ref": "#/$defs/Spec"
     },
     {
+      "$ref": "#/$defs/BindingResult"
+    },
+    {
       "$ref": "#/$defs/ElementCatalogEntry"
     },
     {
@@ -100,6 +103,13 @@
           ],
           "title": "Priority",
           "type": "string"
+        },
+        "journey_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Journey Ids",
+          "type": "array"
         }
       },
       "required": [
@@ -176,10 +186,41 @@
           "enum": [
             "goto",
             "click",
+            "double_click",
             "fill",
+            "type_text",
             "hover",
             "wait",
-            "assert"
+            "assert",
+            "press",
+            "back",
+            "reload",
+            "set_viewport",
+            "set_offline",
+            "throttle_network",
+            "assert_no_broken_images",
+            "assert_internal_links",
+            "assert_no_console_errors",
+            "assert_invalid",
+            "assert_password_masked",
+            "assert_value_length",
+            "assert_numeric_value",
+            "assert_input_value",
+            "assert_no_new_console_errors",
+            "assert_no_unsafe_markup",
+            "assert_empty_state",
+            "assert_no_text_overflow",
+            "assert_named_control",
+            "assert_pagination_boundaries",
+            "assert_protected_route",
+            "assert_idor_isolation",
+            "assert_sort_stability",
+            "assert_numeric_boundary",
+            "assert_double_submit",
+            "assert_mobile_layout",
+            "assert_back_mid_flow",
+            "assert_refresh_mid_flow",
+            "assert_keyboard_submit"
           ],
           "title": "Action",
           "type": "string"
@@ -244,6 +285,13 @@
           "default": "",
           "title": "Expected",
           "type": "string"
+        },
+        "claim_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Claim Ids",
+          "type": "array"
         },
         "category": {
           "default": "journey",
@@ -320,6 +368,48 @@
         "description"
       ],
       "title": "Spec",
+      "type": "object"
+    },
+    "BindingResult": {
+      "additionalProperties": false,
+      "description": "Case-level result of mapping abstract actions to discovered controls.",
+      "properties": {
+        "test_case": {
+          "$ref": "#/$defs/TestCase"
+        },
+        "verdict": {
+          "enum": [
+            "BOUND",
+            "INCONCLUSIVE"
+          ],
+          "title": "Verdict",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "title": "Reason",
+          "type": "string"
+        },
+        "deterministic_steps": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Deterministic Steps",
+          "type": "array"
+        },
+        "model_steps": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Model Steps",
+          "type": "array"
+        }
+      },
+      "required": [
+        "test_case",
+        "verdict"
+      ],
+      "title": "BindingResult",
       "type": "object"
     },
     "ElementCatalogEntry": {
@@ -1240,6 +1330,13 @@
           "minLength": 1,
           "title": "Spec",
           "type": "string"
+        },
+        "context": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Context",
+          "type": "object"
         }
       },
       "required": [
@@ -1303,6 +1400,17 @@
           "title": "Accessibility Snapshot",
           "type": "string"
         },
+        "parsed_spec": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Spec"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "discovered_elements": {
           "items": {
             "$ref": "#/$defs/ElementCatalogEntry"
@@ -1310,11 +1418,25 @@
           "title": "Discovered Elements",
           "type": "array"
         },
+        "test_cases": {
+          "items": {
+            "$ref": "#/$defs/TestCase"
+          },
+          "title": "Test Cases",
+          "type": "array"
+        },
         "test_results": {
           "items": {
             "$ref": "#/$defs/TestResult"
           },
           "title": "Test Results",
+          "type": "array"
+        },
+        "exported_tests": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exported Tests",
           "type": "array"
         },
         "metrics": {

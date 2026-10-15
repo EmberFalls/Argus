@@ -20,7 +20,8 @@ app = typer.Typer(
 
 
 def _run(url: str | None, spec: str | None, output: Path,
-         journeys: Path | None, stubs: bool, real: str | None) -> None:
+         journeys: Path | None, stubs: bool, real: str | None,
+         context_files: list[Path] | None = None) -> None:
     if stubs:
         from argus.stubs import run_stub_demo
 
@@ -50,7 +51,16 @@ def _run(url: str | None, spec: str | None, output: Path,
     if journeys:
         raw = json.loads(journeys.read_text(encoding="utf-8"))
         cases = [TestCase.model_validate(item) for item in raw]
-    summary = asyncio.run(run_qa(url, spec, cases, output))
+    context: dict[str, str] = {}
+    if cases is None:
+        for path in context_files or []:
+            if path.name in context:
+                raise typer.BadParameter(f"Context file names must be unique: {path.name}", param_hint="--context")
+            try:
+                context[path.name] = path.read_text(encoding="utf-8")
+            except OSError as exc:
+                raise typer.BadParameter(f"Cannot read context file {path}: {exc}", param_hint="--context") from exc
+    summary = asyncio.run(run_qa(url, spec, cases, output, spec_context=context))
     print(f"[green]Run complete[/green]: {summary['metrics']}")
     print(f"Evidence: {summary['artifact_dir']}")
 
@@ -62,6 +72,7 @@ def default_run(
     spec: str | None = typer.Option(None, help="Short description of expected application behavior"),
     output: Path = typer.Option(settings.artifact_dir, help="Directory for run evidence"),
     journeys: Path | None = typer.Option(None, help="JSON file containing explicit TestCase objects"),
+    context_files: list[Path] = typer.Option([], "--context", help="Supporting README/OpenAPI/user-story file; may be repeated"),
     stubs: bool = typer.Option(False, "--stubs", help="Run all role interfaces against golden fixtures; no browser or network required"),
     real: str | None = typer.Option(
         None, "--real", help="Comma-separated roles to replace (for example: explorer,tester)"
@@ -69,7 +80,7 @@ def default_run(
 ) -> None:
     """Keep the original top-level run syntax as a backwards-compatible shortcut."""
     if ctx.invoked_subcommand is None:
-        _run(url, spec, output, journeys, stubs, real)
+        _run(url, spec, output, journeys, stubs, real, context_files)
 
 
 @app.command()
@@ -78,13 +89,14 @@ def run(
     spec: str | None = typer.Option(None, help="Short description of expected application behavior"),
     output: Path = typer.Option(settings.artifact_dir, help="Directory for run evidence"),
     journeys: Path | None = typer.Option(None, help="JSON file containing explicit TestCase objects"),
+    context_files: list[Path] = typer.Option([], "--context", help="Supporting README/OpenAPI/user-story file; may be repeated"),
     stubs: bool = typer.Option(False, "--stubs", help="Run all role interfaces against golden fixtures; no browser or network required"),
     real: str | None = typer.Option(
         None, "--real", help="Comma-separated roles to replace (for example: explorer,tester)"
     ),
 ) -> None:
     """Run the fixture skeleton or inspect a target and execute supplied journeys."""
-    _run(url, spec, output, journeys, stubs, real)
+    _run(url, spec, output, journeys, stubs, real, context_files)
 
 
 def _default_snapshot_path(url: str) -> Path:

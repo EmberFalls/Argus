@@ -19,11 +19,18 @@ After editing a contract model, regenerate schemas and frontend types with `make
 
 Run all golden role fixtures offline with `argus --stubs`; details are in [packages/agent/README.md](packages/agent/README.md).
 
+The spec parser, heuristic playbook, and semantic test binder can be selected
+as real roles with `argus --stubs --real spec_parser,playbook,binder`. The parser
+uses the configured structured-model gateway; the playbook and binder remain
+deterministic unless an ambiguous locator requires the binder's cached `cheap`
+model fallback. See [docs/spec-parser.md](docs/spec-parser.md) and
+[docs/playbook.md](docs/playbook.md).
+
 Run the F-07 walking-skeleton smoke command with `make skeleton`. To exercise selected role replacements while keeping the rest on fixtures, use `argus --stubs --real explorer,tester`.
 
 See [docs/HOW_TO_RUN.md](docs/HOW_TO_RUN.md) for setup, CLI options, and run examples.
 
-The CLI currently performs a browser inventory pass and saves a run summary, NDJSON events, and artifacts under `artifacts/runs/<run_id>/`. Add journey JSON with `--journeys path.json` to execute deterministic steps and capture evidence. The sample app in Docker Compose is reachable at `http://localhost:3100`.
+The live CLI parses `--spec` into journeys, adds deterministic edge-case checks, binds them to discovered controls, and saves a run summary, NDJSON events, and artifacts under `artifacts/runs/<run_id>/`. Passing journeys are exported as standalone Playwright specs in each run's `tests/` directory, with case and linked claim IDs in the file header. Configure a `cheap` model route for parsing. Supporting files can be supplied with repeated `--context README.md --context openapi.yaml` options. Add `--journeys path.json` to use explicit journey JSON instead of the parsing call; playbook generation and binding still run. The sample app in Docker Compose is reachable at `http://localhost:3100`.
 
 ## Repository map
 

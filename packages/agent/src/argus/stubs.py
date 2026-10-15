@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
 from typing import Sequence
@@ -9,12 +10,16 @@ from uuid import uuid4
 
 from argus_contracts.artifacts import RunArtifactLayout
 from argus_contracts.models import (
-    AppGraph, BugReport, ElementCatalogEntry, Evidence, Finding, GateResult,
+    AppGraph, BindingResult, BugReport, ElementCatalogEntry, Evidence, Finding, GateResult,
     QAState, RunEvent, Spec, TestCase, TestResult, VerificationResult,
 )
 
 from argus.reporter.playwright_export import export_test
 from argus.components import ComponentRegistry, DemoExplorer, DemoTester
+from argus.models import ModelGateway
+from argus.spec.binder import SemanticTestBinder
+from argus.spec.parser import ModelSpecParser
+from argus.spec.playbook import HeuristicPlaybookGenerator
 
 
 FIXTURE_DIR = Path(__file__).resolve().parents[4] / "fixtures"
@@ -58,25 +63,35 @@ class FixtureExplorer:
 
 class FixtureSpecParser:
     def __init__(self, fixtures: GoldenFixtures): self.fixtures = fixtures
-    def parse(self, description: str) -> Spec:
+    async def parse(self, description: str, context: dict[str, str] | None = None) -> Spec:
         return self.fixtures.spec.model_copy(update={"description": description or self.fixtures.spec.description})
 
 
 class FixturePlaybookGenerator:
     def __init__(self, fixtures: GoldenFixtures): self.fixtures = fixtures
-    def generate(self, spec: Spec) -> list[TestCase]:
+    def generate(self, spec: Spec, elements: Sequence[ElementCatalogEntry] | None = None) -> list[TestCase]:
         return [case for case in self.fixtures.test_cases if case.source == "playbook"]
 
 
 class FixtureBinder:
-    def bind(self, test_cases: Sequence[TestCase], elements: Sequence[ElementCatalogEntry]) -> list[TestCase]:
+    async def bind(self, test_cases: Sequence[TestCase], elements: Sequence[ElementCatalogEntry]) -> list[BindingResult]:
         available = {element.semantic_locator for element in elements}
         bound = []
         for case in test_cases:
+            unresolved = []
             for step in case.steps:
-                if step.action in {"click", "fill", "hover"} and step.locator not in available:
-                    raise ValueError(f"No fixture element matches semantic locator {step.locator!r}")
-            bound.append(TestCase.model_validate(case.model_dump()))
+                if step.action in {"click", "double_click", "fill", "type_text", "hover", "press"} and step.locator not in available:
+                    unresolved.append(step.locator)
+            bound.append(BindingResult(
+                test_case=TestCase.model_validate(case.model_dump()),
+                verdict="INCONCLUSIVE" if unresolved else "BOUND",
+                reason=(f"No fixture element matches semantic locator(s): {', '.join(unresolved)}"
+                        if unresolved else ""),
+                deterministic_steps=[
+                    index for index, step in enumerate(case.steps)
+                    if step.action in {"click", "double_click", "fill", "type_text", "hover", "press"} and step.locator in available
+                ],
+            ))
         return bound
 
 
@@ -159,6 +174,9 @@ def build_demo_registry(fixtures: GoldenFixtures, layout: RunArtifactLayout) -> 
         "explorer", lambda: DemoExplorer(FixtureExplorer(fixtures))
     )
     registry.register_real("tester", lambda: DemoTester(FixtureTester(fixtures)))
+    registry.register_real("spec_parser", lambda: ModelSpecParser(ModelGateway()))
+    registry.register_real("playbook", HeuristicPlaybookGenerator)
+    registry.register_real("binder", lambda: SemanticTestBinder(ModelGateway()))
     return registry
 
 
@@ -175,11 +193,25 @@ def run_stub_demo(
     registry = registry or build_demo_registry(fixtures, layout)
     roles = registry.build(real_roles)
 
-    spec = roles["spec_parser"].parse(fixtures.spec.description)
+    spec = asyncio.run(roles["spec_parser"].parse(fixtures.spec.description))
     app_graph, elements = roles["explorer"].explore("https://demo.realworld.io")
-    test_cases = list(spec.journeys) + roles["playbook"].generate(spec)
-    test_cases = roles["binder"].bind(test_cases, elements)
-    test_results = roles["tester"].run(test_cases, "https://demo.realworld.io")
+    test_cases = list(spec.journeys) + roles["playbook"].generate(spec, elements)
+    binding_results = asyncio.run(roles["binder"].bind(test_cases, elements))
+    bound_cases = [result.test_case for result in binding_results if result.verdict == "BOUND"]
+    test_results = roles["tester"].run(bound_cases, "https://demo.realworld.io")
+    test_results.extend(
+        TestResult(
+            test_id=result.test_case.id,
+            verdict="INCONCLUSIVE",
+            evidence=Evidence(
+                steps=result.test_case.steps,
+                expected=result.test_case.expected,
+                actual=result.reason,
+            ),
+            duration_ms=0,
+        )
+        for result in binding_results if result.verdict == "INCONCLUSIVE"
+    )
     findings = [finding for result in test_results for finding in roles["oracle"].evaluate(result)]
     evidence_by_finding = {finding.id: fixtures.evidence_for(finding) for finding in findings}
     gates = [roles["gate"].evaluate(finding, evidence_by_finding[finding.id]) for finding in findings]

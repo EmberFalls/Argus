@@ -18,9 +18,9 @@ class MyExplorer(Explorer):
 
 ```text
 Explorer.explore(url) -> (AppGraph, list[ElementCatalogEntry])
-SpecParser.parse(description) -> Spec
+SpecParser.parse(description, context=None) -> Spec
 PlaybookGenerator.generate(spec) -> list[TestCase]
-Binder.bind(test_cases, elements) -> list[TestCase]
+Binder.bind(test_cases, elements) -> list[BindingResult]
 Tester.run(test_cases, url) -> list[TestResult]
 Oracle.evaluate(test_result) -> list[Finding]
 Gate.evaluate(finding, evidence) -> GateResult
@@ -67,6 +67,8 @@ Argus-owned DOM overlays must be marked with `data-argus-agent`, `data-argus-inj
 `argus.models.ModelGateway` is the sole provider boundary for structured LLM and VLM calls. It validates each response with JSON Schema and supports `cheap`, `strong`, `strong_alt`, and `vlm` tiers. The default Explorer tier is `cheap`; Red Team uses `strong_alt` and startup validation rejects identical provider/model pairs.
 
 Set `ARGUS_MODEL_BASE_URL` and `ARGUS_MODEL_API_KEY`, then set `ARGUS_MODEL_CHEAP_NAME`, `ARGUS_MODEL_STRONG_NAME`, `ARGUS_MODEL_STRONG_ALT_NAME`, and `ARGUS_MODEL_VLM_NAME`. A tier can override the shared endpoint and key with `ARGUS_MODEL_<TIER>_BASE_URL` and `ARGUS_MODEL_<TIER>_API_KEY`. Endpoints use the OpenAI-compatible `/chat/completions` API; changing compatible providers or model names requires configuration changes only.
+
+The live QA pipeline parses `--spec` into journeys when no explicit `--journeys` JSON is supplied, then appends deterministic playbook checks and binds all cases to the Explorer catalog. Passing journeys are exported as standalone Playwright specs under the run's `tests/` directory; each file includes case and linked claim IDs. This path requires a configured `cheap` model route. Supporting files can be passed repeatedly with `--context README.md --context openapi.yaml`; the API accepts the same material as a `context` string map. Explicit `--journeys` avoids the parsing call but still runs playbook generation and semantic binding.
 
 `ARGUS_MODEL_MODE=record` calls the configured provider and saves deterministic JSON cassettes in `ARGUS_MODEL_CASSETTE_DIR`. `ARGUS_MODEL_MODE=replay` reads those cassettes and fails without making a network request when a cassette is missing. `live` makes provider calls without writing cassettes. All modes enforce the shared rate limiter and per-run budgets. For image input on the `vlm` tier, pass the provider's multimodal user content blocks as `prompt` rather than a string.
 

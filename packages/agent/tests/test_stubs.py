@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 from typing import get_args
 from typer.testing import CliRunner
@@ -37,9 +38,9 @@ def test_all_golden_fixtures_parse_under_f01_models():
     assert len(fixtures.run_events) == 60
     assert all(isinstance(item, RunEvent) for item in fixtures.run_events)
     assert {item.type for item in fixtures.run_events} == set(get_args(RunEventType))
-    parsed_markdown = FixtureSpecParser(fixtures).parse(
+    parsed_markdown = asyncio.run(FixtureSpecParser(fixtures).parse(
         (fixtures.root / "sample_spec.md").read_text(encoding="utf-8")
-    )
+    ))
     assert isinstance(parsed_markdown, Spec)
 
 

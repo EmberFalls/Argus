@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Protocol, Sequence, runtime_checkable
 
 from argus_contracts.models import (
-    AppGraph, BugReport, ElementCatalogEntry, Evidence, Finding, GateResult,
+    AppGraph, BindingResult, BugReport, ElementCatalogEntry, Evidence, Finding, GateResult,
     RunEvent, Spec, TestCase, TestResult, VerificationResult,
 )
 
@@ -21,17 +21,21 @@ class Explorer(Protocol):
 
 @runtime_checkable
 class SpecParser(Protocol):
-    def parse(self, description: str) -> Spec: ...
+    async def parse(self, description: str, context: dict[str, str] | None = None) -> Spec: ...
 
 
 @runtime_checkable
 class PlaybookGenerator(Protocol):
-    def generate(self, spec: Spec) -> list[TestCase]: ...
+    def generate(
+        self, spec: Spec, elements: Sequence[ElementCatalogEntry] | None = None
+    ) -> list[TestCase]: ...
 
 
 @runtime_checkable
 class Binder(Protocol):
-    def bind(self, test_cases: Sequence[TestCase], elements: Sequence[ElementCatalogEntry]) -> list[TestCase]: ...
+    async def bind(
+        self, test_cases: Sequence[TestCase], elements: Sequence[ElementCatalogEntry]
+    ) -> list[BindingResult]: ...
 
 
 @runtime_checkable

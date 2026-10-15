@@ -32,6 +32,6 @@ async def create_run(request: CreateRunRequest) -> dict:
                                             for domain in settings.allowed_domains):
         raise HTTPException(status_code=400, detail="Target host is not in ARGUS_ALLOWED_DOMAINS")
     try:
-        return await run_qa(str(request.url), request.spec)
+        return await run_qa(str(request.url), request.spec, spec_context=request.context)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc

@@ -47,13 +47,13 @@ These built-in replacements demonstrate the registry and contract boundary; they
 
 ## Run against a web application
 
-Start your target app, then run Argus with its URL and a short description of expected behavior. The existing live runner opens the URL, inventories the page, and executes journeys only when you pass `--journeys`:
+Start a disposable or staging target app, configure a `cheap` model route as described in the agent README, then run Argus with its URL and a short description of expected behavior. Argus opens the URL, parses the description into journeys, generates deterministic form/list edge cases, binds their semantic targets, and executes the bound cases. Form playbook checks can submit synthetic input, so do not point this flow at production data.
 
 ```sh
-argus --url http://localhost:3100 --spec "Check the home page loads"
+argus --url http://localhost:3100 --spec "Check the home page loads" --context README.md --context openapi.yaml
 ```
 
-To try a deterministic journey, pass a JSON file containing an array of `TestCase` objects. The checked-in golden cases describe Conduit and are intended for that sample app, so use them with the sample app rather than an unrelated site:
+Supporting context files are optional and repeatable. To skip model parsing and use explicit journeys, pass a JSON file containing an array of `TestCase` objects. The checked-in golden cases describe Conduit and are intended for that sample app, so use them with the sample app rather than an unrelated site. Deterministic playbook checks and semantic binding still run:
 
 ```sh
 argus --url http://localhost:3100 --spec "Users can sign in and create an article" --journeys fixtures/test_cases.json --output artifacts
@@ -110,6 +110,7 @@ Use `argus --help` for the command list and `argus run --help` for run options. 
 | `--spec TEXT` | For a live run | Short description of expected application behavior. Not required with `--stubs`. |
 | `--output PATH` | No | Directory for run evidence. Defaults to `artifacts`. |
 | `--journeys PATH` | No | JSON array of explicit `TestCase` objects to execute. |
+| `--context PATH` | No | Supporting README, OpenAPI, or user-story file; may be repeated. |
 | `--stubs` | No | Run against golden fixture data without a browser or network access. |
 | `--real ROLES` | No | With `--stubs`, comma-separated role names to replace, such as `explorer,tester`. The currently registered demo replacements are `explorer` and `tester`. |
 | `--help` | No | Show command help and exit. |

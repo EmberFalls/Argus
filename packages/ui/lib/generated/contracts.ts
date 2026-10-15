@@ -4,6 +4,7 @@ export interface SpecClaim {
   "id": string;
   "statement": string;
   "priority"?: "critical" | "high" | "normal" | "low";
+  "journey_ids"?: Array<string>;
 }
 
 export interface SpecEntity {
@@ -19,7 +20,7 @@ export interface ValidationRule {
 }
 
 export interface Step {
-  "action": "goto" | "click" | "fill" | "hover" | "wait" | "assert";
+  "action": "goto" | "click" | "double_click" | "fill" | "type_text" | "hover" | "wait" | "assert" | "press" | "back" | "reload" | "set_viewport" | "set_offline" | "throttle_network" | "assert_no_broken_images" | "assert_internal_links" | "assert_no_console_errors" | "assert_invalid" | "assert_password_masked" | "assert_value_length" | "assert_numeric_value" | "assert_input_value" | "assert_no_new_console_errors" | "assert_no_unsafe_markup" | "assert_empty_state" | "assert_no_text_overflow" | "assert_named_control" | "assert_pagination_boundaries" | "assert_protected_route" | "assert_idor_isolation" | "assert_sort_stability" | "assert_numeric_boundary" | "assert_double_submit" | "assert_mobile_layout" | "assert_back_mid_flow" | "assert_refresh_mid_flow" | "assert_keyboard_submit";
   "locator"?: string;
   "value"?: string | null;
   "timeout_ms"?: number;
@@ -31,6 +32,7 @@ export interface TestCase {
   "description": string;
   "steps"?: Array<Step>;
   "expected"?: string;
+  "claim_ids"?: Array<string>;
   "category"?: "journey" | "edge_case";
   "source"?: "spec" | "playbook";
 }
@@ -42,6 +44,14 @@ export interface Spec {
   "entities"?: Array<SpecEntity>;
   "validation_rules"?: Array<ValidationRule>;
   "auth_requirements"?: Array<string>;
+}
+
+export interface BindingResult {
+  "test_case": TestCase;
+  "verdict": "BOUND" | "INCONCLUSIVE";
+  "reason"?: string;
+  "deterministic_steps"?: Array<number>;
+  "model_steps"?: Array<number>;
 }
 
 export interface ElementCatalogEntry {
@@ -195,6 +205,7 @@ export interface QAState {
 export interface CreateRunRequest {
   "url": string;
   "spec": string;
+  "context"?: Record<string, string>;
 }
 
 export interface RunMetrics {
@@ -209,7 +220,10 @@ export interface RunSummary {
   "target_url": string;
   "spec": string;
   "accessibility_snapshot"?: string;
+  "parsed_spec"?: Spec | null;
   "discovered_elements"?: Array<ElementCatalogEntry>;
+  "test_cases"?: Array<TestCase>;
   "test_results"?: Array<TestResult>;
+  "exported_tests"?: Array<string>;
   "metrics"?: RunMetrics;
 }

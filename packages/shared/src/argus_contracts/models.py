@@ -10,7 +10,24 @@ class ContractModel(BaseModel):
 
 
 class Step(ContractModel):
-    action: Literal["goto", "click", "fill", "hover", "wait", "assert"]
+    action: Literal[
+        "goto", "click", "double_click", "fill", "type_text", "hover", "wait", "assert", "press",
+        "back", "reload", "set_viewport", "set_offline", "throttle_network",
+        "assert_no_broken_images", "assert_internal_links", "assert_no_console_errors",
+        "assert_invalid", "assert_password_masked",
+        "assert_value_length",
+        "assert_numeric_value",
+        "assert_input_value", "assert_no_new_console_errors", "assert_no_unsafe_markup",
+        "assert_empty_state", "assert_no_text_overflow", "assert_named_control",
+        "assert_pagination_boundaries", "assert_protected_route", "assert_idor_isolation",
+        "assert_sort_stability",
+        "assert_numeric_boundary",
+        "assert_double_submit",
+        "assert_mobile_layout",
+        "assert_back_mid_flow",
+        "assert_refresh_mid_flow",
+        "assert_keyboard_submit",
+    ]
     locator: str = ""
     value: str | None = None
     timeout_ms: int = Field(default=5000, gt=0, le=120000)
@@ -22,6 +39,7 @@ class TestCase(ContractModel):
     description: str = Field(min_length=1)
     steps: list[Step] = Field(default_factory=list)
     expected: str = ""
+    claim_ids: list[str] = Field(default_factory=list)
     category: Literal["journey", "edge_case"] = "journey"
     source: Literal["spec", "playbook"] = "spec"
 
@@ -30,6 +48,7 @@ class SpecClaim(ContractModel):
     id: str = Field(min_length=1)
     statement: str = Field(min_length=1)
     priority: Literal["critical", "high", "normal", "low"] = "normal"
+    journey_ids: list[str] = Field(default_factory=list)
 
 
 class SpecEntity(ContractModel):
@@ -51,6 +70,16 @@ class Spec(ContractModel):
     entities: list[SpecEntity] = Field(default_factory=list)
     validation_rules: list[ValidationRule] = Field(default_factory=list)
     auth_requirements: list[str] = Field(default_factory=list)
+
+
+class BindingResult(ContractModel):
+    """Case-level result of mapping abstract actions to discovered controls."""
+
+    test_case: TestCase
+    verdict: Literal["BOUND", "INCONCLUSIVE"]
+    reason: str = ""
+    deterministic_steps: list[int] = Field(default_factory=list)
+    model_steps: list[int] = Field(default_factory=list)
 
 
 class ElementCatalogEntry(ContractModel):
@@ -216,6 +245,7 @@ class QAState(ContractModel):
 class CreateRunRequest(ContractModel):
     url: HttpUrl
     spec: str = Field(min_length=1)
+    context: dict[str, str] = Field(default_factory=dict)
 
 
 class RunMetrics(ContractModel):
@@ -230,6 +260,9 @@ class RunSummary(ContractModel):
     target_url: HttpUrl
     spec: str
     accessibility_snapshot: str = ""
+    parsed_spec: Spec | None = None
     discovered_elements: list[ElementCatalogEntry] = Field(default_factory=list)
+    test_cases: list[TestCase] = Field(default_factory=list)
     test_results: list[TestResult] = Field(default_factory=list)
+    exported_tests: list[str] = Field(default_factory=list)
     metrics: RunMetrics = Field(default_factory=RunMetrics)
