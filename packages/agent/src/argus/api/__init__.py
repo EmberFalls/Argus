@@ -15,10 +15,20 @@ from uuid import uuid4
 
 from argus_contracts.artifacts import RunArtifactLayout
 from argus_contracts.models import CreateRunRequest, RunEvent
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
 
+from argus.api.screencast import ScreencastHub
 from argus.config import settings
 from argus.run_store import RunStore
 from argus.supervisor.loop import run_qa
@@ -64,6 +74,7 @@ class RunService:
     def __init__(self, artifact_root: str | Path):
         self.store = RunStore(artifact_root)
         self._tasks: dict[str, asyncio.Task[None]] = {}
+        self.screencasts: dict[str, ScreencastHub] = {}
 
     def start(
         self, request: CreateRunRequest, mode: Literal["real", "fixture"]
@@ -71,6 +82,8 @@ class RunService:
         run_id = uuid4().hex
         RunArtifactLayout(self.store.runs_root, run_id).initialize()
         self.store.create(run_id, str(request.url), request.spec)
+        hub = ScreencastHub(run_id)
+        self.screencasts[run_id] = hub
         task = asyncio.create_task(self._execute(run_id, request, mode))
         self._tasks[run_id] = task
         task.add_done_callback(lambda _task: self._tasks.pop(run_id, None))
@@ -78,6 +91,7 @@ class RunService:
             "run_id": run_id,
             "status": "queued",
             "events_url": f"/runs/{run_id}/events",
+            "screencast_url": f"/runs/{run_id}/screencast",
             "detail_url": f"/runs/{run_id}",
             "artifacts_url": f"/runs/{run_id}/artifacts",
         }
@@ -104,6 +118,8 @@ class RunService:
                     request.spec,
                     output_dir=self.store.artifact_root,
                     run_id=run_id,
+                    on_screencast_frame=self.screencasts[run_id].publish_frame,
+                    on_action=self.screencasts[run_id].publish_action,
                 )
             self.store.update(run_id, status="completed")
         except Exception as exc:
@@ -120,6 +136,8 @@ class RunService:
                 )
             )
             self.store.update(run_id, status="failed", error=str(exc))
+        finally:
+            self.screencasts[run_id].close()
 
 
 run_service = RunService(settings.artifact_dir)
@@ -136,6 +154,7 @@ def _public_run(row: dict[str, Any]) -> dict[str, Any]:
         "created_at": row["created_at"],
         "updated_at": row["updated_at"],
         "events_url": f"/runs/{run_id}/events",
+        "screencast_url": f"/runs/{run_id}/screencast",
         "detail_url": f"/runs/{run_id}",
         "artifacts_url": f"/runs/{run_id}/artifacts",
     }
@@ -291,6 +310,54 @@ async def stream_run_events(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.websocket("/runs/{run_id}/screencast")
+async def stream_screencast(websocket: WebSocket, run_id: str) -> None:
+    """Stream CDP frames and action overlays without modifying the target DOM."""
+    if run_service.store.get(run_id) is None:
+        await websocket.close(code=4404, reason="Run not found")
+        return
+    hub = run_service.screencasts.get(run_id)
+    if hub is None:
+        await websocket.close(code=4404, reason="Run has no live screencast")
+        return
+
+    await websocket.accept()
+    try:
+        auth_message = await asyncio.wait_for(websocket.receive_json(), timeout=5)
+    except WebSocketDisconnect:
+        # The UI may close/reconnect while a run is starting. The peer is
+        # already gone, so don't turn that normal disconnect into an ASGI error.
+        return
+    except (TimeoutError, ValueError):
+        try:
+            await websocket.close(code=4401, reason="Screencast authentication handshake required")
+        except WebSocketDisconnect:
+            pass
+        return
+    expected = os.environ.get("ARGUS_API_TOKEN", settings.api_token)
+    supplied = auth_message.get("token", "") if isinstance(auth_message, dict) else ""
+    if (
+        not isinstance(supplied, str)
+        or (expected and not hmac.compare_digest(supplied.encode("utf-8"), expected.encode("utf-8")))
+        or (not isinstance(auth_message, dict) or auth_message.get("type") != "auth")
+    ):
+        await websocket.close(code=4401, reason="Invalid screencast credentials")
+        return
+
+    queue = hub.subscribe()
+    try:
+        await websocket.send_json({"kind": "ready", "run_id": run_id})
+        while True:
+            message = await queue.get()
+            await websocket.send_json(message)
+            if message.get("kind") == "closed":
+                break
+    except WebSocketDisconnect:
+        pass
+    finally:
+        hub.unsubscribe(queue)
 
 
 @app.get(

@@ -3,6 +3,7 @@ import type { RunEvent } from "@/lib/generated/contracts";
 import "@/lib/panels";
 import { getPanel, getPanels } from "@/lib/panels/registry";
 import { runStore, useRunStore } from "@/lib/run-store";
+import { LiveView } from "@/components/live-view";
 import fixtureText from "../../../fixtures/run_events.ndjson?raw";
 import "./styles/replay.css";
 
@@ -10,6 +11,7 @@ interface FixtureLoadState { error: string | null; loaded: boolean }
 
 export default function ReplayPage() {
   const [loadState, setLoadState] = useState<FixtureLoadState>({ error: null, loaded: false });
+  const [cursorDemoRun, setCursorDemoRun] = useState(0);
   const runId = useRunStore((state) => state.runId);
   const status = useRunStore((state) => state.status);
   const speed = useRunStore((state) => state.speed);
@@ -59,7 +61,9 @@ export default function ReplayPage() {
             <article><span>Target</span><strong>{targetUrl(runStore.getState().events[0])}</strong></article>
             <article><span>Replay status</span><strong>{status === "complete" ? "Completed" : status === "running" ? "In progress" : "Ready"}</strong></article>
           </section>
+          <LiveView runId={runId} fixtureSrc="/fixtures/fixture-browser-frame.svg" demoCursorRun={cursorDemoRun} />
           <section className="replay-controls" aria-label="Fixture replay controls">
+            <button onClick={() => setCursorDemoRun((run) => run + 1)}>↗ Play 5s cursor demo</button>
             {!playing ? <button className="replay-primary" onClick={() => status === "idle" || status === "complete" ? runStore.start() : runStore.resume()} disabled={!loadState.loaded || !!loadState.error}>▶ {status === "complete" ? "Replay again" : status === "running" ? "Resume" : "Start replay"}</button> : <button className="replay-primary" onClick={() => runStore.pause()}>Ⅱ Pause</button>}
             <button onClick={() => runStore.reset()} disabled={!eventCount}>↺ Reset</button>
             <label>Playback speed<select value={speed} onChange={(event) => runStore.setSpeed(Number(event.target.value))}><option value={0.5}>0.5×</option><option value={1}>1×</option><option value={2}>2×</option><option value={4}>4×</option></select></label>
