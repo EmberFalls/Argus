@@ -62,6 +62,43 @@ Use `--output path.json` to choose the output file and `--max-tokens 1200` to re
 
 Argus-owned DOM overlays must be marked with `data-argus-agent`, `data-argus-injected`, or `data-argus-overlay` (or use `#argus-agent-overlay`). The snapshot/catalog boundary excludes these marked roots.
 
+## Deterministic application crawl
+
+Build a same-origin route/state graph without calling an LLM:
+
+```sh
+argus crawl http://localhost:3100 --output artifacts/app_graph.json
+```
+
+The crawler defaults to 50 pages and 500 navigation/click steps. `AppGraph` keeps
+its original `adjacency` mapping and adds `nodes` (URL, A-01 signature, snapshot,
+and element catalog) and `edges` (action and semantic locator). External links are
+ignored by the temporary same-origin guard; D-07 can be connected through the
+injectable `navigation_guard` callback.
+
+For a logged-in pass, provide a code-owned login callback. The crawler runs it
+once, saves Playwright `storage_state.json` beside the graph, then creates a fresh
+authenticated context and crawls again:
+
+```python
+import asyncio
+from argus.agents.explorer_crawler import crawl_app
+
+async def login(page):
+    await page.get_by_label("Email").fill("qa@example.test")
+    await page.get_by_label("Password").fill("test-password")
+    await page.get_by_role("button", name="Sign in").click()
+
+asyncio.run(crawl_app(
+    "http://localhost:3100",
+    "artifacts/app_graph.json",
+    auth_bootstrap=login,
+))
+```
+
+The login callback is regular Python and is not sent to a model. Keep real
+credentials out of checked-in scripts and use environment-backed test secrets.
+
 ## Model gateway
 
 `argus.models.ModelGateway` is the sole provider boundary for structured LLM and VLM calls. It validates each response with JSON Schema and supports `cheap`, `strong`, `strong_alt`, and `vlm` tiers. The default Explorer tier is `cheap`; Red Team uses `strong_alt` and startup validation rejects identical provider/model pairs.

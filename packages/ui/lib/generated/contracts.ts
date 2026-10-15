@@ -56,8 +56,28 @@ export interface ElementCatalogEntry {
   "in_viewport": boolean;
 }
 
+export interface AppGraphNode {
+  "id": string;
+  "url": string;
+  "signature": string;
+  "title"?: string;
+  "accessibility_snapshot"?: string;
+  "elements"?: Array<ElementCatalogEntry>;
+  "authenticated"?: boolean;
+  "captured"?: boolean;
+}
+
+export interface AppGraphEdge {
+  "source": string;
+  "target": string;
+  "action": "link" | "button";
+  "locator": string;
+}
+
 export interface AppGraph {
   "adjacency"?: Record<string, Array<string>>;
+  "nodes"?: Array<AppGraphNode>;
+  "edges"?: Array<AppGraphEdge>;
 }
 
 export interface NetworkEvent {

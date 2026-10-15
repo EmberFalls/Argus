@@ -2,6 +2,8 @@
 
 from .models import (
     AppGraph,
+    AppGraphEdge,
+    AppGraphNode,
     BugReport,
     ConsoleEvent,
     CreateRunRequest,
@@ -29,6 +31,8 @@ from .models import (
 
 __all__ = [
     "AppGraph",
+    "AppGraphEdge",
+    "AppGraphNode",
     "BugReport",
     "ConsoleEvent",
     "CreateRunRequest",
