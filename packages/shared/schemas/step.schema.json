@@ -1,0 +1,46 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "enum": [
+        "goto",
+        "click",
+        "fill",
+        "hover",
+        "wait",
+        "assert"
+      ],
+      "title": "Action",
+      "type": "string"
+    },
+    "locator": {
+      "default": "",
+      "title": "Locator",
+      "type": "string"
+    },
+    "value": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Value"
+    },
+    "timeout_ms": {
+      "default": 5000,
+      "exclusiveMinimum": 0,
+      "maximum": 120000,
+      "title": "Timeout Ms",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "action"
+  ],
+  "title": "Step",
+  "type": "object"
+}

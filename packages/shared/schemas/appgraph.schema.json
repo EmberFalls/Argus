@@ -1,0 +1,17 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "adjacency": {
+      "additionalProperties": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "title": "Adjacency",
+      "type": "object"
+    }
+  },
+  "title": "AppGraph",
+  "type": "object"
+}

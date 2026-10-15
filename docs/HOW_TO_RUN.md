@@ -1,0 +1,167 @@
+# How to run Argus
+
+This guide covers the Python CLI, the offline walking skeleton, and the optional UI.
+
+## Requirements
+
+- Python 3.11 or newer
+- Node.js 22 and pnpm only if you want to run the UI
+- Docker Desktop (or Docker Engine with Compose) only if you want to run the included sample app or full containerized stack
+- A target web app running locally or at an allowlisted URL reachable from your machine for browser runs
+
+You do not need Docker for the offline skeleton. The Python CLI and API need the Python setup below; the Vite UI is optional. The commands below assume PowerShell on Windows and a terminal opened at the repository root.
+
+## Install the Python packages
+
+From the repository root, create and activate a virtual environment, then install the local packages and Chromium browser binary:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install -e .\packages\shared
+python -m pip install -e ".\packages\agent[dev]"
+python -m playwright install chromium
+```
+
+On macOS or Linux, activate the environment with `source .venv/bin/activate` and use the same pip commands with forward-slash paths. The `argus` command is installed by the agent package. Keep the virtual environment activated in each terminal where you run it.
+
+The equivalent repository setup shortcut is `make setup`. `make test` runs the Python test suites, and `make lint` runs the Python and UI linters. Pre-commit hooks are configured in `.pre-commit-config.yaml`; after installing `pre-commit`, enable them with `pre-commit install`.
+
+If PowerShell blocks environment activation, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` in that terminal, then activate `.venv` again. This changes the policy only for that terminal session.
+
+## Run the offline walking skeleton
+
+The skeleton exercises all role interfaces with golden fixtures. It does not start a browser or contact a target application:
+
+```sh
+argus --stubs
+```
+
+To exercise role replacement, use the deterministic demo implementations for Explorer and Tester while the other roles use fixtures:
+
+```sh
+argus --stubs --real explorer,tester
+```
+
+These built-in replacements demonstrate the registry and contract boundary; they still delegate to fixture data. The command creates a run under `artifacts/runs/<run_id>/`, including `events.ndjson`, `state.json`, exported tests, and a bug report. From an installed development checkout, `make skeleton` runs the same offline command.
+
+## Run against a web application
+
+Start your target app, then run Argus with its URL and a short description of expected behavior. The existing live runner opens the URL, inventories the page, and executes journeys only when you pass `--journeys`:
+
+```sh
+argus --url http://localhost:3100 --spec "Check the home page loads"
+```
+
+To try a deterministic journey, pass a JSON file containing an array of `TestCase` objects. The checked-in golden cases describe Conduit and are intended for that sample app, so use them with the sample app rather than an unrelated site:
+
+```sh
+argus --url http://localhost:3100 --spec "Users can sign in and create an article" --journeys fixtures/test_cases.json --output artifacts
+```
+
+`argus --help` shows both the explicit `run` command and the backwards-compatible top-level run options.
+
+Capture one page and write its ARIA snapshot, typed element catalog, state signature, and compact prompt rendering to JSON with:
+
+```powershell
+argus snapshot http://localhost:3100
+```
+
+The default output is a URL-derived file under `artifacts/snapshots/`. Choose a file and a smaller prompt budget with `--output` and `--max-tokens`:
+
+```powershell
+argus snapshot http://localhost:3100 --output artifacts/snapshots/workbench.json --max-tokens 1200
+```
+
+The runner writes state, events, and browser evidence beneath `artifacts/runs/<run_id>/` by default. It requires the target app to be reachable and Chromium to be installed. For a first manual CLI run, use the included sample app. Make sure Docker Desktop is running:
+
+```powershell
+docker compose up --build sample-app
+```
+
+Then, in a second terminal, activate the Python virtual environment and run the CLI command above against `http://localhost:3100`. Stop the sample app with `Ctrl+C` when finished.
+
+### Testing another website
+
+The CLI can navigate to any HTTP(S) URL. The API used by the frontend has an additional host allowlist, which defaults to `localhost,127.0.0.1`. To let the API open a public website, set `ARGUS_ALLOWED_DOMAINS` in the shell before starting the API. Use exact domains you trust; an entry also allows its subdomains.
+
+PowerShell example:
+
+```powershell
+$env:ARGUS_ALLOWED_DOMAINS = "localhost,127.0.0.1,example.com"
+uvicorn argus.api:app --app-dir packages/agent/src --host 127.0.0.1 --port 8000
+```
+
+macOS/Linux example:
+
+```sh
+ARGUS_ALLOWED_DOMAINS=localhost,127.0.0.1,example.com uvicorn argus.api:app --app-dir packages/agent/src --host 127.0.0.1 --port 8000
+```
+
+With that API running, the frontend can submit `https://example.com`. The CLI does not use this API allowlist; the browser runner itself still has no action guard in this current implementation, so only enter URLs you intend to inspect.
+
+## CLI options
+
+Use `argus --help` for the command list and `argus run --help` for run options. Both `argus run --stubs` and the backwards-compatible `argus --stubs` form work:
+
+| Option | Required? | Description |
+|---|---:|---|
+| `--url TEXT` | For a live run | Target web application URL. Not required with `--stubs`. |
+| `--spec TEXT` | For a live run | Short description of expected application behavior. Not required with `--stubs`. |
+| `--output PATH` | No | Directory for run evidence. Defaults to `artifacts`. |
+| `--journeys PATH` | No | JSON array of explicit `TestCase` objects to execute. |
+| `--stubs` | No | Run against golden fixture data without a browser or network access. |
+| `--real ROLES` | No | With `--stubs`, comma-separated role names to replace, such as `explorer,tester`. The currently registered demo replacements are `explorer` and `tester`. |
+| `--help` | No | Show command help and exit. |
+
+Examples:
+
+```sh
+argus --help
+argus run --help
+argus run --stubs --output artifacts/demo
+argus --stubs --output artifacts/demo
+argus --url http://localhost:3100 --spec "A user can sign in" --output artifacts/login-run
+```
+
+## Run the frontend and backend API
+
+The frontend form sends runs to the Python API at `http://localhost:8000`. First complete the Python setup above. Install Node.js 22, then enable Corepack (which supplies the repository-pinned pnpm version) if pnpm is not already available:
+
+```powershell
+corepack enable
+```
+
+Open two terminals from the repository root. Activate `.venv` in the API terminal; the UI terminal does not need Python.
+
+Terminal 1 — API:
+
+```powershell
+uvicorn argus.api:app --app-dir packages/agent/src --host 127.0.0.1 --port 8000
+```
+
+Terminal 2 — Vite frontend:
+
+```sh
+pnpm install
+pnpm dev
+```
+
+Open `http://localhost:5173`, enter the target app URL and expected behavior, and submit. The default frontend API address is `http://localhost:8000`; set `VITE_ARGUS_API_URL` in the repository-root `.env` file before starting Vite to point elsewhere. The API rejects hosts outside `ARGUS_ALLOWED_DOMAINS` with HTTP 400.
+
+For the included sample app, start `docker compose up --build sample-app` in a third terminal first. The default API allowlist already permits `localhost`, so the form can submit `http://localhost:3100`. For a public website, set `ARGUS_ALLOWED_DOMAINS` in the API terminal as shown above before starting Uvicorn.
+
+The frontend has both a simple run form at `/` and a sample dashboard at `/dashboard`. The dashboard currently displays fixture content; use the form to submit a real API run. You can instead start the sample app, API, and UI with `docker compose up --build`, then open `http://localhost:3000`; the UI form is configured to call the API on host port 8000.
+
+## Run checks
+
+```sh
+make skeleton       # offline walking-skeleton smoke run
+make check-schemas  # verify generated contract schemas and UI types are current
+```
+
+To run the Python test suite from the repository root:
+
+```sh
+python -m pytest packages/shared/tests packages/agent/tests
+```

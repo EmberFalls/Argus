@@ -1,0 +1,32 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "minLength": 1,
+      "title": "Id",
+      "type": "string"
+    },
+    "statement": {
+      "minLength": 1,
+      "title": "Statement",
+      "type": "string"
+    },
+    "priority": {
+      "default": "normal",
+      "enum": [
+        "critical",
+        "high",
+        "normal",
+        "low"
+      ],
+      "title": "Priority",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "statement"
+  ],
+  "title": "SpecClaim",
+  "type": "object"
+}

@@ -1,0 +1,37 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "level": {
+      "enum": [
+        "debug",
+        "info",
+        "warning",
+        "error"
+      ],
+      "title": "Level",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "timestamp": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Timestamp"
+    }
+  },
+  "required": [
+    "level",
+    "message"
+  ],
+  "title": "ConsoleEvent",
+  "type": "object"
+}
