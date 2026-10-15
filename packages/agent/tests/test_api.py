@@ -105,17 +105,20 @@ def test_real_run_start_and_api_token_protection(tmp_path, monkeypatch):
             run_id = response.json()["run_id"]
             events = client.get(f"/runs/{run_id}/events", headers=headers)
             frames = _sse_frames(events.text)
-            assert [sequence for sequence, _ in frames] == [0, 1, 2]
+            assert [sequence for sequence, _ in frames] == [0, 1, 2, 3]
             assert [event["type"] for _, event in frames] == [
                 "run_started",
+                "action",
                 "page_discovered",
                 "run_completed",
             ]
+            assert frames[1][1]["payload"]["action"] == "inspect"
+            assert frames[1][1]["payload"]["rationale"]
             resumed = client.get(
                 f"/runs/{run_id}/events",
                 headers={**headers, "Last-Event-ID": "0"},
             )
-            assert [sequence for sequence, _ in _sse_frames(resumed.text)] == [1, 2]
+            assert [sequence for sequence, _ in _sse_frames(resumed.text)] == [1, 2, 3]
             detail = client.get(f"/runs/{run_id}", headers=headers).json()
             assert detail["status"] == "completed"
             assert detail["summary"]["accessibility_snapshot"]
