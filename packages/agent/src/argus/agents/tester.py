@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import re
 from collections.abc import Callable
+from contextlib import suppress
 from typing import Any
 from urllib.parse import urljoin
 from uuid import uuid4
@@ -36,7 +37,7 @@ async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtif
     try:
         prepared = factory.prepare(case)
         case = prepared.test_case
-    except Exception as exc:
+    except ValueError as exc:
         prepared = None
         preparation_error = f"Test data preparation failed: {type(exc).__name__}: {exc}"
     recorder = EvidenceRecorder(
@@ -55,7 +56,7 @@ async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtif
             raise ValueError(preparation_error)
         assert prepared is not None
         await factory.reset(prepared)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - reset hooks are user-provided and failures become setup results.
         verdict = "INCONCLUSIVE"
         failure_kind = "setup"
         actual = (
@@ -108,7 +109,7 @@ async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtif
                 verdict = "INCONCLUSIVE"
                 failure_kind = "timeout"
                 actual = f"Step {step_index} timed out after {step.timeout_ms} ms: {exc}"
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - action failures must be recorded as test results.
             verdict, actual = "FAIL", f"{type(exc).__name__}: {exc}"
             failure_kind = "assertion" if step.action == "assert" or step.action.startswith("assert_") else "interaction"
             failed_step_index = step_index
@@ -128,12 +129,10 @@ async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtif
             break
     # Restore per-case emulation even when an interaction failed partway through.
     if any(step.action == "set_offline" for step in case.steps):
-        try:
+        with suppress(PlaywrightError):
             await page.context.set_offline(False)
-        except Exception:
-            pass
     if any(step.action == "throttle_network" for step in case.steps) and session.cdp_session is not None:
-        try:
+        with suppress(PlaywrightError):
             await session.cdp_session.send("Network.emulateNetworkConditions", {
                 "offline": False,
                 "latency": 0,
@@ -141,8 +140,6 @@ async def execute_case(session: BrowserSession, case: TestCase, layout: RunArtif
                 "uploadThroughput": -1,
                 "connectionType": "none",
             })
-        except Exception:
-            pass
     evidence = await recorder.finish(
         actual=actual, failure_kind=failure_kind, failed_step_index=failed_step_index,
     )
@@ -229,7 +226,7 @@ async def _run_step(page: Page, step: Step, *, cdp_session: CDPSession | None = 
                 try:
                     response = await page.context.request.get(url, timeout=step.timeout_ms)
                     return url, response.status, None
-                except Exception as exc:
+                except PlaywrightError as exc:
                     return url, None, exc
 
         results = await asyncio.gather(*(check_link(url) for url in links[:50]))
@@ -350,18 +347,18 @@ async def _run_step(page: Page, step: Step, *, cdp_session: CDPSession | None = 
         if await page.locator("a, button, input:not([type=hidden]), textarea, select, [role=button], [role=link]").count() == 0:
             raise TestStepInconclusive("This page has no interactive controls to check for accessible names.")
     elif step.action == "assert_pagination_boundaries":
-        first = page.get_by_role("button", name=re.compile(r"\b(first|first page)\b", re.I))
+        first = page.get_by_role("button", name=re.compile(r"\b(first|first page)\b", re.IGNORECASE))
         if await first.count() == 0:
-            first = page.get_by_role("link", name=re.compile(r"\b(first|first page)\b", re.I))
-        last = page.get_by_role("button", name=re.compile(r"\b(last|last page)\b", re.I))
+            first = page.get_by_role("link", name=re.compile(r"\b(first|first page)\b", re.IGNORECASE))
+        last = page.get_by_role("button", name=re.compile(r"\b(last|last page)\b", re.IGNORECASE))
         if await last.count() == 0:
-            last = page.get_by_role("link", name=re.compile(r"\b(last|last page)\b", re.I))
+            last = page.get_by_role("link", name=re.compile(r"\b(last|last page)\b", re.IGNORECASE))
         if await first.count() == 0 or await last.count() == 0:
             raise TestStepInconclusive("Pagination first/last controls are not exposed with semantic names.")
         await first.first.click(timeout=step.timeout_ms)
-        previous = page.get_by_role("button", name=re.compile(r"\b(previous|prev)\b", re.I))
+        previous = page.get_by_role("button", name=re.compile(r"\b(previous|prev)\b", re.IGNORECASE))
         if await previous.count() == 0:
-            previous = page.get_by_role("link", name=re.compile(r"\b(previous|prev)\b", re.I))
+            previous = page.get_by_role("link", name=re.compile(r"\b(previous|prev)\b", re.IGNORECASE))
         if await previous.count() == 0:
             raise TestStepInconclusive("Pagination has no semantic previous-page control.")
         previous_disabled = await previous.first.evaluate(
@@ -370,9 +367,9 @@ async def _run_step(page: Page, step: Step, *, cdp_session: CDPSession | None = 
         if not previous_disabled:
             raise AssertionError("Previous-page control remains enabled on the first page")
         await last.first.click(timeout=step.timeout_ms)
-        following = page.get_by_role("button", name=re.compile(r"\b(next|following)\b", re.I))
+        following = page.get_by_role("button", name=re.compile(r"\b(next|following)\b", re.IGNORECASE))
         if await following.count() == 0:
-            following = page.get_by_role("link", name=re.compile(r"\b(next|following)\b", re.I))
+            following = page.get_by_role("link", name=re.compile(r"\b(next|following)\b", re.IGNORECASE))
         if await following.count() == 0:
             raise TestStepInconclusive("Pagination has no semantic next-page control.")
         next_disabled = await following.first.evaluate(
@@ -384,7 +381,7 @@ async def _run_step(page: Page, step: Step, *, cdp_session: CDPSession | None = 
         path = await page.evaluate("location.pathname")
         body = (await page.locator("body").inner_text()).casefold()
         denial_markers = ("sign in", "log in", "login", "unauthorized", "forbidden", "access denied")
-        protected_path = bool(re.search(r"/(account|dashboard|settings|profile)(?:/|$)", path, re.I))
+        protected_path = bool(re.search(r"/(account|dashboard|settings|profile)(?:/|$)", path, re.IGNORECASE))
         if protected_path and not any(marker in body for marker in denial_markers):
             raise AssertionError(f"Logged-out visitor remained on protected route {path!r} without denial feedback")
     elif step.action == "assert_idor_isolation":
@@ -448,7 +445,7 @@ async def _run_step(page: Page, step: Step, *, cdp_session: CDPSession | None = 
         await _semantic_locator(page, step.locator).dblclick(timeout=step.timeout_ms)
         try:
             await page.wait_for_load_state("networkidle", timeout=min(step.timeout_ms, 2000))
-        except Exception:
+        except PlaywrightTimeoutError:
             await page.wait_for_timeout(250)
         mutations = [event for event in session.requests[before:]
                      if event.get("method", "").upper() in {"POST", "PUT", "PATCH", "DELETE"}]
@@ -487,10 +484,8 @@ async def _run_step(page: Page, step: Step, *, cdp_session: CDPSession | None = 
     elif step.action == "assert_refresh_mid_flow":
         if session is None:
             raise TestStepInconclusive("Request telemetry is unavailable for a refresh-safety check.")
-        try:
+        with suppress(PlaywrightTimeoutError):
             await page.wait_for_load_state("networkidle", timeout=min(step.timeout_ms, 2000))
-        except Exception:
-            pass
         mutation_methods = {"POST", "PUT", "PATCH", "DELETE"}
         before = [event for event in session.requests if event.get("method", "").upper() in mutation_methods]
         if not before:
@@ -500,10 +495,8 @@ async def _run_step(page: Page, step: Step, *, cdp_session: CDPSession | None = 
         count_before = sum((event.get("method", "").upper(), event.get("url", "")) == key
                            for event in before)
         await page.reload(wait_until="domcontentloaded", timeout=step.timeout_ms)
-        try:
+        with suppress(PlaywrightTimeoutError):
             await page.wait_for_load_state("networkidle", timeout=min(step.timeout_ms, 2000))
-        except Exception:
-            pass
         count_after = sum((event.get("method", "").upper(), event.get("url", "")) == key
                           for event in session.requests)
         if count_after > count_before:
